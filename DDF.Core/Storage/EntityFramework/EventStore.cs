@@ -27,7 +27,10 @@ namespace DDF.Core.Storage.EntityFramework
             this._jsonSettings = DefaultJsonSerializerSettings();
         }
 
-        public void StoreEvents(Guid aggregateId, IEnumerable<IDomainEvent> events, long expectedInitialVersion)
+        public void StoreEvents(Guid aggregateId,
+            IEnumerable<IDomainEvent> events,
+            long expectedInitialVersion
+            )
         {
             events = events.ToArray();
             var serializedEvents = events.Select(x =>
@@ -43,8 +46,6 @@ namespace DDF.Core.Storage.EntityFramework
                     if (existingSequence > expectedInitialVersion)
                         throw new ConcurrencyException();
 
-
-
                 using (var t = new TransactionScope())
                 {
 
@@ -54,16 +55,25 @@ namespace DDF.Core.Storage.EntityFramework
                     else
                         updateSequence(aggregateId, expectedInitialVersion, nextVersion.Value, ctx);
 
+                    if (nextVersion > 2 && nextVersion % 3 == 0)
+                    {
+                        
+                    }
+
                     t.Complete();
                 }
+
+
 
             }
 
             _bus.Events.Dispatch(events);
-            
+
         }
 
-        public IEnumerable<IDomainEvent> LoadEvents(Guid aggregateId, long version = 0)
+        public IEnumerable<IDomainEvent> LoadEvents(Guid aggregateId,
+            long version = 0
+            )
         {
             using (var ctx = _dbFactory.Create())
             {
@@ -94,12 +104,12 @@ namespace DDF.Core.Storage.EntityFramework
             };
         }
 
-        private void startNewSequence(
-            Guid aggregateId, 
-            long nextVersion, 
-            EventDbContext ctx)
+        private void startNewSequence(Guid aggregateId,
+            long nextVersion,
+            EventDbContext ctx
+            )
         {
-            ctx.StreamInfos.Add(new StreamInfo()
+            ctx.StreamInfos.Add(new StreamEntry()
             {
                 StreamId = aggregateId,
                 CurrentSequence = nextVersion
@@ -112,11 +122,11 @@ namespace DDF.Core.Storage.EntityFramework
 
         }
 
-        private void updateSequence(
-            Guid aggregateId, 
-            long expectedInitialVersion, 
-            long nextVersion, 
-            EventDbContext ctx)
+        private void updateSequence(Guid aggregateId,
+            long expectedInitialVersion,
+            long nextVersion,
+            EventDbContext ctx
+            )
         {
             var streamInfo = ctx.StreamInfos
                 .Where(x => x.StreamId == aggregateId && x.CurrentSequence == expectedInitialVersion)
@@ -128,11 +138,11 @@ namespace DDF.Core.Storage.EntityFramework
 
         }
 
-        private long insertEventsAndReturnLastVersion(
-            Guid aggregateId, 
-            EventDbContext ctx, 
-            long nextVersion, 
-            IEnumerable<Tuple<string, string>> serializedEvents)
+        private long insertEventsAndReturnLastVersion(Guid aggregateId,
+            EventDbContext ctx,
+            long nextVersion,
+            IEnumerable<Tuple<string, string>> serializedEvents
+            )
         {
             foreach (var e in serializedEvents)
             {
@@ -152,5 +162,31 @@ namespace DDF.Core.Storage.EntityFramework
         }
 
 
+        public T GetSnapshot<T>(Guid aggregateId) where T : AggregateBase
+        {
+            using (var ctx = _dbFactory.Create())
+            {
+                var snapshot = ctx.Snapshots
+                    .Where(x => x.AggregateId == aggregateId)
+                    .OrderBy(x => x.Version).LastOrDefault();
+
+                if (snapshot == null)
+                    return null;
+
+                return JsonConvert.DeserializeObject(snapshot.Body, typeof(T), _jsonSettings) as T;
+
+            }
+        }
+
+        public void SaveSnapshot(AggregateBase aggregate)
+        {
+            using (var ctx = _dbFactory.Create())
+            {
+                var body = JsonConvert.SerializeObject(aggregate, _jsonSettings);
+                var snapshot = new StreamSnapshot(aggregate.Id, aggregate.AggregateVersion, body);
+                ctx.Snapshots.Add(snapshot);
+                ctx.SaveChanges();
+            }
+        }
     }
 }

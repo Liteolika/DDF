@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace DDF.Core.Storage.EntityFramework
 {
-    public class StreamInfo
+    public class StreamEntry
     {
         [Key]
         public Guid StreamId { get; set; }

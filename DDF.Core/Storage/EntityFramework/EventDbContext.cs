@@ -14,7 +14,8 @@ namespace DDF.Core.Storage.EntityFramework
 
 
         public DbSet<DbEvent> Events { get; set; }
-        public DbSet<StreamInfo> StreamInfos { get; set; }
+        public DbSet<StreamEntry> StreamInfos { get; set; }
+        public DbSet<StreamSnapshot> Snapshots { get; set; }
 
         public EventDbContext()
             : base("EventStore")

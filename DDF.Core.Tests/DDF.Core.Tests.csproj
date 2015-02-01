@@ -60,12 +60,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\DDF.Core\DDF.Core.csproj">
-      <Project>{c971a3d7-9971-42d7-8d16-04f4c2afc0b8}</Project>
-      <Name>DDF.Core</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>

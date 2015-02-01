@@ -11,5 +11,7 @@ namespace DDF.Core.Storage
     {
         void StoreEvents(Guid aggregateId, IEnumerable<IDomainEvent> events, long expectedInitialVersion);
         IEnumerable<IDomainEvent> LoadEvents(Guid aggregateId, long version = 0);
+        T GetSnapshot<T>(Guid aggregateId) where T : AggregateBase;
+        void SaveSnapshot(AggregateBase aggregate);
     }
 }
