@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DDF.Core.Messaging
+namespace DDF.Core
 {
-    public interface INotification : IMessage
+    public class Class1
     {
     }
 }
