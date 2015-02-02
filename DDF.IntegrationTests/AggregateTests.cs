@@ -88,13 +88,12 @@ namespace DDF.IntegrationTests
         public void Handle(CreateMyThing command)
         {
             MyThing t = new MyThing(command.Id, command.Title);
-
+            
             _repo.Save(t);
 
             var a = 1;
-
-
         }
+         
     }
 
     public class CreateMyThing
