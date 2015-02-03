@@ -8,16 +8,16 @@ using System.Threading.Tasks;
 
 namespace DDF.Infrastructure.EventSourcing.EntityFramework
 {
-    public class EFEventStorage : IEventStore
-    {
+    //public class EFEventStorage : IEventStore
+    //{
 
-        private readonly IDbContextFactory<EventContext> _contextFactory;
+    //    private readonly IDbContextFactory<EventContext> _contextFactory;
 
-        public EFEventStorage(IDbContextFactory<EventContext> factory)
-        {
-            this._contextFactory = factory;
-        }
+    //    public EFEventStorage(IDbContextFactory<EventContext> factory)
+    //    {
+    //        this._contextFactory = factory;
+    //    }
 
         
-    }
+    //}
 }

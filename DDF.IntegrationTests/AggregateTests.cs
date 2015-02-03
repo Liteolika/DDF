@@ -24,11 +24,11 @@ namespace DDF.IntegrationTests
         {
             container.Configure(cfg =>
             {
-                cfg.For(typeof(IAggregateRepository<>)).Use(typeof(AggregateRepository<>));
-                cfg.For<IEventStore>().Use<InMemoryEventStorage>();
+                cfg.For(typeof(IAggregateRepository<>)).Singleton().Use(typeof(AggregateRepository<>));
+                cfg.For<IEventStore>().Singleton().Use<InMemoryEventStorage>();
             });
 
-            
+
             ICommandDispatcher cmdDispatcher = container.GetInstance<ICommandDispatcher>();
             IEventPublisher eventPublisher = container.GetInstance<IEventPublisher>();
             bus = new InMemoryBus(cmdDispatcher, eventPublisher);
@@ -37,17 +37,44 @@ namespace DDF.IntegrationTests
         [Test]
         public void AggTest()
         {
+            //InMemoryEventStorage eventStore = new InMemoryEventStorage();
+            //IAggregateRepository<MyThing> repo = new AggregateRepository<MyThing>(eventStore);
+            //MyThingCommandHandler handler = new MyThingCommandHandler(repo);
 
-            
+            Guid id = Guid.NewGuid();
 
-            InMemoryEventStorage eventStore = new InMemoryEventStorage();
-            AggregateRepository<MyThing> repo = new AggregateRepository<MyThing>(eventStore);
-            MyThingCommandHandler handler = new MyThingCommandHandler(repo);
-
-            CreateMyThing command = new CreateMyThing(Guid.NewGuid(), "Peter");
+            CreateMyThing command = new CreateMyThing(id, "Peter");
             bus.Send(command);
 
-            
+            var repo = container.GetInstance<IAggregateRepository<MyThing>>();
+            MyThing thing = repo.GetAggregate(id);
+
+            bus.Send(new UpdateMyThing(id, "The new TIIIITLE!!!"));
+
+            MyThing thing2 = repo.GetAggregate(id);
+
+            bus.Send(new UpdateMyThing(id, "The new TIIIITLE!!!2"));
+            bus.Send(new UpdateMyThing(id, "The new TIIIITLE!!!3"));
+            bus.Send(new UpdateMyThing(id, "The new TIIIITLE!!!4"));
+
+            MyThing thing3 = repo.GetAggregate(id);
+
+            bus.Send(new AddSubThing(id, new MySubThing("Hej")));
+            bus.Send(new AddSubThing(id, new MySubThing("Hopp")));
+
+            MyThing thing4 = repo.GetAggregate(id);
+
+            var st = thing4.SubThings.ToList().First();
+
+            bus.Send(new RemoveSubThing(id, st.Id));
+
+            MyThing thing5 = repo.GetAggregate(id);
+
+            bus.Send(new UpdateMyThing(id, ""));
+
+            MyThing thing6 = repo.GetAggregate(id);
+
+            var a = 1;
 
         }
 
@@ -57,24 +84,79 @@ namespace DDF.IntegrationTests
     {
 
         private string _title { get; set; }
+        private List<MySubThing> subThings;
 
-        public MyThing() {}
+        public IEnumerable<MySubThing> SubThings
+        {
+            get { return subThings; }
+        }
+
+        public MyThing()
+        {
+            this.subThings = new List<MySubThing>();
+        }
 
         public MyThing(Guid id, string title)
+            : this()
         {
             ApplyEvent(new MyThingCreated(id, title));
         }
 
-        private void ApplyEvent(MyThingCreated @event)
+        private void Handle(MyThingCreated @event)
         {
-            this.Id = @event.Id;
+            this.AggregateId = @event.AggregateId;
             this._title = @event.Title;
         }
-        
+
+        private void Handle(MyThingUpdated @event)
+        {
+            this._title = @event.Title;
+        }
+
+        private void Handle(MySubThingAdded @event)
+        {
+            this.subThings.Add(@event.Subthing);
+        }
+
+        private void Handle(SubThingRemoved @event)
+        {
+            var subthing = this.subThings.Where(x => x.Id == @event.SubThingId).FirstOrDefault();
+            this.subThings.Remove(subthing);
+        }
+
+        public override string ToString()
+        {
+            return this._title;
+        }
+
+        public override bool IsValid()
+        {
+            if (string.IsNullOrEmpty(this._title))
+                return false;
+
+            return true;
+        }
+
     }
 
-    public class MyThingCommandHandler : 
-        ICommandHandler<CreateMyThing>
+    public class MySubThing
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; }
+
+        public MySubThing(string name)
+        {
+            this.Id = Guid.NewGuid();
+            this.Name = name;
+        }
+    }
+
+
+    public class MyThingCommandHandler :
+        ICommandHandler<CreateMyThing>,
+        ICommandHandler<UpdateMyThing>,
+        ICommandHandler<AddSubThing>,
+        ICommandHandler<RemoveSubThing>
     {
 
         private readonly IAggregateRepository<MyThing> _repo;
@@ -87,37 +169,128 @@ namespace DDF.IntegrationTests
 
         public void Handle(CreateMyThing command)
         {
-            MyThing t = new MyThing(command.Id, command.Title);
-            
-            _repo.Save(t);
+            MyThing t = new MyThing(command.AggregateId, command.Title);
+
+            _repo.SaveAggregate(t);
 
             var a = 1;
         }
-         
+
+        public void Handle(UpdateMyThing command)
+        {
+            MyThing t = _repo.GetAggregate(command.Id);
+            t.ApplyEvent(new MyThingUpdated(t.AggregateId, command.Title));
+            _repo.SaveAggregate(t);
+
+        }
+        
+        public void Handle(AddSubThing command)
+        {
+            MyThing t = _repo.GetAggregate(command.AggregateId);
+            t.ApplyEvent(new MySubThingAdded(t.AggregateId, command.Subthing));
+            _repo.SaveAggregate(t);
+        }
+
+        public void Handle(RemoveSubThing command)
+        {
+            MyThing t = _repo.GetAggregate(command.AggregateId);
+            t.ApplyEvent(new SubThingRemoved(t.AggregateId, command.SubThingId));
+            _repo.SaveAggregate(t);
+        }
     }
 
-    public class CreateMyThing
+    public class RemoveSubThing : CommandBase
     {
-        public CreateMyThing(Guid id, string title)
+        public RemoveSubThing(Guid aggregateId, Guid subThingId)
+            : base(aggregateId)
         {
-            this.Id = id;
+            this.SubThingId = subThingId;
+        }
+
+        public Guid SubThingId { get; set; }
+    }
+
+    public class SubThingRemoved : EventBase
+    {
+        public SubThingRemoved(Guid aggregateId, Guid subThingId)
+            : base(aggregateId)
+        {
+            this.SubThingId = subThingId;
+        }
+
+        public Guid SubThingId { get; set; }
+    }
+
+
+    public class AddSubThing : CommandBase
+    {
+        public AddSubThing(Guid aggregateId, MySubThing subThing)
+            : base(aggregateId)
+        {
+            this.Subthing = subThing;
+        }
+
+        public MySubThing Subthing { get; set; }
+    }
+
+    public class MySubThingAdded : EventBase
+    {
+        public MySubThingAdded(Guid aggregateId, MySubThing subThing)
+            : base(aggregateId)
+        {
+            this.Subthing = subThing;
+        }
+
+        public MySubThing Subthing { get; set; }
+    }
+
+    public class UpdateMyThing
+    {
+        public UpdateMyThing(Guid aggregateId, string title)
+        {
+            this.Id = aggregateId;
             this.Title = title;
         }
 
+        public string Title { get; set; }
+
         public Guid Id { get; set; }
+    }
+
+    public class MyThingUpdated : EventBase
+    {
+        public MyThingUpdated(Guid aggregateId, string title)
+            : base(aggregateId)
+        {
+            this.Title = title;
+        }
 
         public string Title { get; set; }
     }
 
-    public class MyThingCreated
+
+    public class CreateMyThing
     {
-        public MyThingCreated(Guid id, string title)
+        public CreateMyThing(Guid aggregateId, string title)
         {
-            this.Id = id;
+            this.AggregateId = aggregateId;
             this.Title = title;
         }
 
-        public Guid Id { get; set; }
+        public Guid AggregateId { get; set; }
+
+        public string Title { get; set; }
+    }
+
+
+
+    public class MyThingCreated : EventBase
+    {
+        public MyThingCreated(Guid aggregateId, string title)
+            : base(aggregateId)
+        {
+            this.Title = title;
+        }
 
         public string Title { get; set; }
     }

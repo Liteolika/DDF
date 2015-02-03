@@ -9,6 +9,8 @@ namespace DDF.Infrastructure.EventSourcing
 {
     public interface IEventStore
     {
-        
+
+        void SaveEvent(Guid aggregateId, IEvent @event, int aggregateVersion);
+        IEnumerable<IEvent> GetEvents(Guid aggregateId);
     }
 }
